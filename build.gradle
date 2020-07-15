@@ -1,0 +1,29 @@
+apply plugin: 'java'
+apply plugin: 'application'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+version = '1.0'
+mainClassName = 'org.demo.GCalendar'
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+	manifest {
+		attributes 'Main-Class': 'org.demo.GCalendar'
+	}
+	
+	from {
+		configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } 
+	}
+}
+	
+dependencies {
+    compile 'com.google.api-client:google-api-client:1.23.0'
+    compile 'com.google.oauth-client:google-oauth-client-jetty:1.23.0'
+    compile 'com.google.apis:google-api-services-calendar:v3-rev305-1.23.0'	
+}
+
+
