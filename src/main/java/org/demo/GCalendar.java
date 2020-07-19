@@ -172,6 +172,7 @@ public class GCalendar {
     		eventSummary.contains("international team") ||
     		eventSummary.contains("1:1") ||
 			eventSummary.contains("lunch") ||
+			eventSummary.contains("pto") ||
 			eventSummary.contains("emea weekly") ||
 			eventSummary.contains("tech enablement") ||
 			eventSummary.contains("open space") ||
