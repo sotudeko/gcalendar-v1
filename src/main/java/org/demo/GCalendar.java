@@ -1,5 +1,24 @@
 package org.demo;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.security.GeneralSecurityException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
@@ -13,32 +32,9 @@ import com.google.api.client.util.DateTime;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.calendar.Calendar;
 import com.google.api.services.calendar.CalendarScopes;
-import com.google.api.services.calendar.model.CalendarList;
-import com.google.api.services.calendar.model.CalendarListEntry;
 import com.google.api.services.calendar.model.Event;
+import com.google.api.services.calendar.model.EventAttendee;
 import com.google.api.services.calendar.model.Events;
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.GeneralSecurityException;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
 
 
 public class GCalendar {
@@ -54,61 +50,68 @@ public class GCalendar {
     private static final List<String> SCOPES = Collections.singletonList(CalendarScopes.CALENDAR_READONLY);
     private static final String CREDENTIALS_FILE_PATH = "./credentials.json";
     private static final String CALENDARIDS_FILE_PATH = "./calendar-ids.txt";
-    private static final String EXCLUDE_EVENTS_FILE_PATH = "./exclude-events.txt";
-
     
-    public static void main(String... args) throws IOException, GeneralSecurityException {
+	public static void main(String... args) throws IOException, GeneralSecurityException {
     	
     	if (args.length == 0) {
-            throw new FileNotFoundException("usage: start and end dates required in format yyyy-mm-dd");
-        }
-    	
-        // Build a new authorized API client service.
-    	final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-    	
-        Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-        
-        String startDate = args[0];
+            throw new FileNotFoundException("error: start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
+		}
+
+		String startDate = args[0];
         String endDate = args[1];
-        
-        DateTime timeMin = parseDate("startDate", startDate);
-        DateTime timeMax = parseDate("endDate", endDate);
-        
-        List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
-        
-        if (calendarIds.size() == 0) {
-            throw new FileNotFoundException("Calendar Ids file not found or is empty: " + CALENDARIDS_FILE_PATH);
-        }
-        
-        String outputFile = startDate + "_" + endDate + ".csv";
-        
-        File f = new File(outputFile);
-        BufferedWriter bw = null;
+		
+		String outputFile = startDate + "_" + endDate + ".csv";
+
+		File f = new File(outputFile);
+		BufferedWriter bw = null;
+		
+		if (f.exists()){
+			System.out.println("removing existing output file: " + outputFile);
+			f.delete();
+		}
         		
         if (f.createNewFile()) {
         	FileOutputStream fos = new FileOutputStream(f);
         	bw = new BufferedWriter(new OutputStreamWriter(fos));
         	bw.write("Id,Event,DateTime\n");
         }
-        else {
-        	throw new IOException("File already exists: " + f.getName());
-        }
         
-        for (String calendarId : calendarIds) {
-			listCalendarEvents(service, calendarId, timeMin, timeMax, bw);
-		}
+        // Build a new authorized API client service.
+    	final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+    	
+        Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+                .setApplicationName(APPLICATION_NAME)
+                .build();
+    
+        DateTime timeMin = parseDate("startDate", startDate);
+        DateTime timeMax = parseDate("endDate", endDate);
         
-        bw.close();
-        
-        System.out.println("\nOutputfile: " + outputFile);
+        List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
 		
-        //listCalendars(service);
+		int count = 0;
+
+        if (calendarIds.size() == 0) {
+            throw new FileNotFoundException("Calendar Ids file not found or is empty: " + CALENDARIDS_FILE_PATH);
+		}
+		else {
+			for (String calendarId : calendarIds) {
+				if (!calendarId.startsWith("#")){
+					int i = listCalendarEvents(service, calendarId, timeMin, timeMax, bw);
+					count += i;
+				}
+			}	
+			
+			bw.close();
+			System.out.println("\nOutputfile: " + outputFile);
+		}
+		
+		System.out.println("Total entries: " + count);
+
     }
     
     
-    public static void listCalendarEvents(Calendar service, String calendarId, DateTime timeMin, DateTime timeMax, BufferedWriter bw) throws IOException {
+    public static int listCalendarEvents(Calendar service, String calendarId, DateTime timeMin, DateTime timeMax,
+			BufferedWriter bw) throws IOException {
 	    
 		Events events = service.events().list(calendarId)
                 .setTimeMin(timeMin)
@@ -117,91 +120,96 @@ public class GCalendar {
                 .setSingleEvents(true)
                 .execute();
         
-        List<Event> items = events.getItems();
+		List<Event> items = events.getItems();
+		int i = 0;
         
         if (items.isEmpty()) {
             System.out.println("No upcoming events found.");
         } 
         else {
             
-        	int i = 0;
-        	
             for (Event event : items) {
-            	
-            	String eventSummary = event.getSummary();
-            	
-            	if (writeEvent(eventSummary.toLowerCase())) {
-            		DateTime start = event.getStart().getDateTime();
-                    
-                    if (start == null) {
-                        start = event.getStart().getDate();
-                    }
-                    
-                    String str = calendarId + "," + event.getSummary() + "," + start;
-                    bw.write(str);
-            		bw.newLine();
-            		
-            		i++;
-            	}
-                
+
+				String eventSummary = event.getSummary();
+				
+				if (!excludeEvent(eventSummary.toLowerCase())){
+					
+					List<EventAttendee> attendees = event.getAttendees();
+				
+					if (attendees != null && writeEvent(attendees)){
+				
+						DateTime start = event.getStart().getDateTime();
+						
+						if (start == null) {
+							start = event.getStart().getDate();
+						}
+						
+						String str = calendarId + "," + event.getSummary() + "," + start;
+						bw.write(str);
+						bw.newLine();
+						
+						i++;
+					}
+				}
             }
             
             System.out.println(calendarId + "," + i);
-        }
+		}
+		
+		return i;
 	}
  
     
-    private static boolean writeEvent(String eventSummary) throws IOException {
-    	
-    	if (eventSummary.contains("scrum") ||
-    		eventSummary.contains("bi-weekly") ||
+    private static boolean excludeEvent(String eventSummary) {
+
+		if (eventSummary.contains("scrum") ||
+    		eventSummary.contains("ipod bi-weekly") ||
     		eventSummary.contains("biweekly") ||
     		eventSummary.contains("battle buddies") ||
     		eventSummary.contains("pm/em/se") ||
     		eventSummary.contains("talkto") ||
-    		eventSummary.contains("weekly") ||
+			eventSummary.contains("redlight") ||
     		eventSummary.contains("international team") ||
     		eventSummary.contains("1:1") ||
-    		eventSummary.contains("lunch") ||
+			eventSummary.contains("lunch") ||
+			eventSummary.contains("emea weekly") ||
+			eventSummary.contains("tech enablement") ||
+			eventSummary.contains("open space") ||
+			eventSummary.contains("brightspots") ||
      		eventSummary.contains("out of office")) {
-    		return false;
+    		return true;
     	}
     	else {
-    		
-    		List<String> excludeEvents = readFile(EXCLUDE_EVENTS_FILE_PATH);
-    		
-    		if (excludeEvents.size() > 0) {
-    			
-    			boolean status = true;
-    			
-    			for (String event : excludeEvents) {
-    				
-    				String eventStr = event.toLowerCase();
-    				
-    				if (!isBlankString(eventStr) && eventSummary.contains(eventStr)) {
-    					status = false;
-    				}
-    			}
-    			
-    			return status;
-    		}
-    		else {
-    			return true;
-    		}
-    	}
+			return false;
+		}
 	}
 
+	private static boolean writeEvent(List<EventAttendee> attendees) {
 
-    private static boolean isBlankString(String string) {
-        return string == null || string.trim().isEmpty();
-    }
+		boolean status = false;
+
+		for (EventAttendee attendee: attendees) {
+
+            if (attendee != null){
+                String email = attendee.getEmail();
+            
+				if (!email.contains("@sonatype.com")){
+					status = true;
+					continue;
+				}
+            }
+        }
+
+        return status;
+	}
+
     
 	private static DateTime parseDate(String period, String periodStr) {
     	
     	String periodTime;
     	
     	if (period == "startDate")
-    		periodTime = "00:00:00";
+    		periodTime = "01:00:00";
     	else
     		periodTime = "23:00:00";
     			
@@ -240,23 +248,6 @@ public class GCalendar {
         LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
         
         return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
-    }
-
-    
-	public static void listCalendars(Calendar service) throws IOException {
-		String pageToken = null;
-		
-		do {
-			CalendarList calendarList = service.calendarList().list().setPageToken(pageToken).execute();
-			List<CalendarListEntry> items = calendarList.getItems();
-
-			for (CalendarListEntry calendarListEntry : items) {
-				System.out.println(calendarListEntry.getSummary());
-			}
-			
-			pageToken = calendarList.getNextPageToken();
-		} 
-		while (pageToken != null);
 	}
 	
 	
