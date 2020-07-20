@@ -132,6 +132,8 @@ public class GCalendar {
 
 				String eventSummary = event.getSummary();
 				
+				System.out.println(eventSummary + ":" + event.getStatus());
+
 				if (!excludeEvent(eventSummary.toLowerCase())){
 					
 					List<EventAttendee> attendees = event.getAttendees();
