@@ -36,11 +36,11 @@ This is a simple java application that will read and list calendars events for a
 
 **Run the application**
   * Ensure the 3 files are in your working directory
-        ```
-	gcalendar.jar
-	credentials.json
-	calendar-ids.txt
-	```
+       
+      - gcalendar.jar
+      - credentials.json
+      - calendar-ids.txt
+
   * Determine you start and end periods to provide to the application in yyyy-mm-dd format. Typically, these would be a Monday to Friday.
   * Run the app
 	```
