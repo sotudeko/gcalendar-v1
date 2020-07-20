@@ -41,7 +41,8 @@ This is a simple java application that will read and list calendars events for a
 	credentials.json
 	calendar-ids.txt
 	```
-	* Determine you start and end periods to provide to the application in yyyy-mm-dd format. Typically, these would be a Monday to Friday.
+  * Determine you start and end periods to provide to the application in yyyy-mm-dd format. Typically, these would be a Monday to Friday.
+  * Run the app
 	```
 	java -jar gcalendar-<version>.jar 2020-07-13 2020-07-20
 	```
