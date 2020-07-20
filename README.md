@@ -14,7 +14,7 @@ This is a simple java application that will read and list calendars events for a
 **Download the java app**
   * Create a working directory
   * Click on the *gcalendar.zip* file, then download the file to your working directory
-  * Unzip the contents into the working directory. This will extract the file *gcalendar.jar*
+  * Unzip the contents into the working directory. This will extract the file *gcalendar-<version>.jar*
 	```
 	mkdir ${HOME}/gcalendar
 	cd gcalendar
@@ -31,19 +31,19 @@ This is a simple java application that will read and list calendars events for a
 
 **Create list of calendars to read**
   * Create a file called *calendar-ids.txt* in your working directory
-	* Add the calendar ids to the file, one per line. The calendar id is the person's email address
-	* e.g. sotudeko@sonatype.com
+  * Add the calendar ids to the file, one per line. The calendar id is the person's email address
+  * e.g. sotudeko@sonatype.com
 
 **Run the application**
   * Ensure the 3 files are in your working directory
-  ```
+        ```
 	gcalendar.jar
 	credentials.json
 	calendar-ids.txt
 	```
-	* Determine you start and end periods to provide to the application. Typically, these would Monday to Friday.
+	* Determine you start and end periods to provide to the application in yyyy-mm-dd format. Typically, these would be a Monday to Friday.
 	```
-	java -jar gcalendar 2020-07-13 2020-07-20
+	java -jar gcalendar-<version>.jar 2020-07-13 2020-07-20
 	```
 
 
