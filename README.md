@@ -7,14 +7,14 @@ This is a simple java application that will read and list calendars events for a
 ## Prerequisites
 
   * Java runtime
-	* You have a valid Google calendar and persmission to access calendars you would like to read
+  * You have a valid Google calendar and persmission to access calendars you would like to read
 
 ## Getting Started
 
 **Download the java app**
   * Create a working directory
   * Click on the *gcalendar.zip* file, then download the file to your working directory
-  * Unzip the contents to your directory of choice. This will extract the file gcalendar.jar 
+  * Unzip the contents into the working directory. This will extract the file *gcalendar.jar*
 	```
 	mkdir ${HOME}/gcalendar
 	cd gcalendar
