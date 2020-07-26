@@ -43,11 +43,13 @@ This is a simple java application that will read and list calendars events for a
 
   * Determine you start and end periods to provide to the application in yyyy-mm-dd format. Typically, these would be a Monday to Friday.
   * Run the app
+	* (on the first run, it will open up the Google accounts list for you to select your Google Calendar to provide access to
 	```
 	java -jar gcalendar-<version>.jar 2020-07-13 2020-07-20
 	```
 	
 **Output**
   * As well as the summary count of events displayed to the screen, a file named *<startdate>_<enddate>.csv* will also be created in the current directory.
+
 
 
