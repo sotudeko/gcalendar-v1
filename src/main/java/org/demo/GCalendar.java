@@ -116,8 +116,14 @@ public class GCalendar {
 	public static int listCalendarEvents(Calendar service, String calendarId, DateTime timeMin, DateTime timeMax,
 			BufferedWriter bw) throws IOException, ParseException {
 
-		Events events = service.events().list(calendarId).setTimeMin(timeMin).setTimeMax(timeMax)
-				.setOrderBy("startTime").setSingleEvents(true).execute();
+		Events events = service
+				.events()
+				.list(calendarId)
+				.setTimeMin(timeMin)
+				.setTimeMax(timeMax)
+				.setOrderBy("startTime")
+				.setSingleEvents(true)
+				.execute();
 
 		List<Event> items = events.getItems();
 		int i = 0;
@@ -221,7 +227,11 @@ public class GCalendar {
 			start = e.getStart().getDate();
 		}
 
-		String etime = start.toString().substring(start.toString().indexOf("T") + 1, start.toString().indexOf("."));
+		String etime = start.toString();
+
+		if (etime.length() > 10){
+			etime = etime.substring(etime.indexOf("T") + 1, etime.indexOf("."));
+		}
 
 		return etime;
 	}
