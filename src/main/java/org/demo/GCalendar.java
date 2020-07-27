@@ -58,8 +58,7 @@ public class GCalendar {
 	public static void main(final String... args) throws Exception {
 
 		if (args.length == 0) {
-			throw new Exception(
-					"error: start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
+			errorExit("start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
 		}
 
 		String startDate = args[0];
@@ -71,14 +70,13 @@ public class GCalendar {
 		BufferedWriter bw = null;
 
 		if (f.exists()) {
-			System.out.println("removing existing output file: " + outputFile);
 			f.delete();
 		}
 
 		if (f.createNewFile()) {
 			FileOutputStream fos = new FileOutputStream(f);
 			bw = new BufferedWriter(new OutputStreamWriter(fos));
-			bw.write("Id,Event,DateTime\n");
+			bw.write("Id,Event,Date,Time\n");
 		}
 
 		// Build a new authorized API client service.
@@ -95,7 +93,7 @@ public class GCalendar {
 		int count = 0;
 
 		if (calendarIds.size() == 0) {
-			throw new FileNotFoundException("Calendar Ids file not found or is empty: " + CALENDARIDS_FILE_PATH);
+			errorExit("calendar ids file not found: " + CALENDARIDS_FILE_PATH);
 		} 
 		else {
 			for (final String calendarId : calendarIds) {
@@ -106,11 +104,19 @@ public class GCalendar {
 				}
 			}
 
+			if (count > 0){
+				bw.write("Total entries: " + count);
+				System.out.println("\nOutputfile: " + outputFile);
+			}
+			
 			bw.close();
-			System.out.println("\nOutputfile: " + outputFile);
+			System.out.println("Total entries: " + count);
 		}
+	}
 
-		System.out.println("Total entries: " + count + "\n");
+	private static void errorExit(String msg){
+		System.err.println("error: " + msg);
+		System.exit(-1);
 	}
 
 	public static int listCalendarEvents(Calendar service, String calendarId, DateTime timeMin, DateTime timeMax,
@@ -157,7 +163,6 @@ public class GCalendar {
 			}
 
 			String outputSummary = calendarId + "," + i + "\n";
-			bw.write(outputSummary);
 			System.out.print(outputSummary);
 		}
 
