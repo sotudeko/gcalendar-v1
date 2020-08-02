@@ -143,10 +143,19 @@ public class GCalendar {
 
 			for (Event event : items) {
 
+				if (event.getSummary() == null){
+					continue;
+				}
+
 				String eventSummary = event.getSummary();
+
+				if (excludeEvent(eventSummary.toLowerCase())) {
+					continue;
+				}
+
 				List<EventAttendee> attendees = event.getAttendees();
 
-				if (attendees == null || excludeEvent(eventSummary.toLowerCase()) || isDeclined(calendarId, attendees)) {
+				if (attendees == null || isDeclined(calendarId, attendees)) {
 						continue;
 				}
 
@@ -187,6 +196,11 @@ public class GCalendar {
 		long oneDay = 86400000;
 
 		for (Event event : items) {
+
+			if (event.getSummary() == null){
+				continue;
+			}
+
 			String eventSummary = event.getSummary().toLowerCase();
 
 			if (eventSummary.contains("pto") || eventSummary.contains("out of office")) {
