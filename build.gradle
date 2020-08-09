@@ -1,9 +1,34 @@
-apply plugin: 'java'
-apply plugin: 'application'
+
+plugins {
+	id 'java'
+	id 'application'
+	id 'org.sonatype.gradle.plugins.scan' version '1.2.0'
+}
+
+nexusIQScan {
+  username = 'admin'
+  password = 'admin123'
+  serverUrl = 'http://localhost:8070'
+  applicationId = 'gcal-app'
+  stage = 'build'  
+  allConfigurations = true 
+}
+
+task copyDependencies(type: Copy) {
+  from configurations.default
+  into 'build/dependencies'
+}
+
+task gcPackage(type: Zip) {
+   from 'build/libs'
+   include '*.jar'
+   archiveName 'gcalendar.zip'
+   destinationDir(file('.'))
+}
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-version = '1.0'
+version = '1.1'
 mainClassName = 'org.demo.GCalendar'
 
 repositories {

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.security.GeneralSecurityException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -64,6 +65,9 @@ public class GCalendar {
 		String startDate = args[0];
 		String endDate = args[1];
 
+		DateTime timeMin = parseDate("startDate", startDate);
+		DateTime timeMax = parseDate("endDate", endDate);
+
 		String outputFile = startDate + "_" + endDate + ".csv";
 
 		File f = new File(outputFile);
@@ -74,126 +78,130 @@ public class GCalendar {
 		}
 
 		if (f.createNewFile()) {
-			FileOutputStream fos = new FileOutputStream(f);
+			final FileOutputStream fos = new FileOutputStream(f);
 			bw = new BufferedWriter(new OutputStreamWriter(fos));
 			bw.write("Id,Event,Date,Time\n");
 		}
 
 		// Build a new authorized API client service.
-		final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+		// final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
 
-		Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-				.setApplicationName(APPLICATION_NAME).build();
-
-		DateTime timeMin = parseDate("startDate", startDate);
-		DateTime timeMax = parseDate("endDate", endDate);
+		// final Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+		// 		.setApplicationName(APPLICATION_NAME).build();
 
 		List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
 
-		int count = 0;
-
 		if (calendarIds.size() == 0) {
 			errorExit("calendar ids file not found: " + CALENDARIDS_FILE_PATH);
-		} 
-		else {
-			for (final String calendarId : calendarIds) {
-
-				if (!calendarId.startsWith("#")) {
-					int i = listCalendarEvents(service, calendarId, timeMin, timeMax, bw);
-					count += i;
-				}
-			}
-
-			if (count > 0){
-				bw.write("Total entries: " + count);
-				System.out.println("\nOutputfile: " + outputFile);
-			}
-			
-			bw.close();
-			System.out.println("Total entries: " + count);
 		}
+
+		int count = 0;
+
+		for (String calendarId : calendarIds) {
+
+			if (calendarId.startsWith("#")) {
+				continue;
+			}
+
+			List<Event> calendarItems = getCalendarEvents(calendarId, timeMin, timeMax);
+
+			if (calendarItems.isEmpty()) {
+				System.out.println("No upcoming events found.");
+				continue;
+			} 
+
+			List<String> ptoDays = getPTODays(calendarItems);
+
+			int i = listCalendarEvents(calendarId, calendarItems, ptoDays, timeMin, timeMax, bw);
+			count += i;
+
+		}
+
+		if (count > 0) {
+			bw.write("Total entries: " + count);
+			System.out.println("\nOutputfile: " + outputFile);
+		}
+
+		bw.close();
+		System.out.println("Total entries: " + count);
 	}
 
-	private static void errorExit(String msg){
+	private static List<Event> getCalendarEvents(String calendarId, DateTime timeMin, DateTime timeMax)
+			throws GeneralSecurityException, IOException {
+
+		final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+
+		final Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+				.setApplicationName(APPLICATION_NAME).build();
+
+		final Events events = service
+							.events()
+							.list(calendarId)
+							.setTimeMin(timeMin)
+							.setTimeMax(timeMax)
+							.setOrderBy("startTime")
+							.setSingleEvents(true)
+							.execute();
+
+		final List<Event> items = events.getItems();
+
+		return items;
+	 }
+
+	private static void errorExit(final String msg){
 		System.err.println("error: " + msg);
 		System.exit(-1);
 	}
 
-	public static int listCalendarEvents(Calendar service, String calendarId, DateTime timeMin, DateTime timeMax,
+	public static int listCalendarEvents(
+			String calendarId, 
+			List<Event> items, 
+			List<String> ptoDays, 
+			DateTime timeMin,
+			DateTime timeMax,
 			BufferedWriter bw) throws IOException, ParseException {
 
-		Events events = service
-				.events()
-				.list(calendarId)
-				.setTimeMin(timeMin)
-				.setTimeMax(timeMax)
-				.setOrderBy("startTime")
-				.setSingleEvents(true)
-				.execute();
-
-		List<Event> items = events.getItems();
 		int i = 0;
 
-		if (items.isEmpty()) {
-			System.out.println("No upcoming events found.");
-		} 
-		else {
+		for (final Event event : items) {
 
-			List<String> ptoDays = getPTODays(items);
-
-			for (Event event : items) {
-
-				if (event.getSummary() == null){
-					continue;
-				}
-
-				String eventSummary = event.getSummary();
-
-				if (excludeEvent(eventSummary.toLowerCase())) {
-					continue;
-				}
-
-				List<EventAttendee> attendees = event.getAttendees();
-
-				if (attendees == null || isDeclined(calendarId, attendees)) {
-						continue;
-				}
-
-				String eday = getDayStr(event.getStart());
-				String etime = getTimeStr(event);
-
-				if (isCustomerMeeting(attendees) && isNotPTODay(ptoDays, eday)) {
-					String str = calendarId + "," + event.getSummary() + "," + eday + "," + etime;
-
-					bw.write(str);
-					bw.newLine();
-					i++;
-				}
+			if (event.getSummary() == null){
+				continue;
 			}
 
-			String outputSummary = calendarId + "," + i + "\n";
-			System.out.print(outputSummary);
+			String eventSummary = event.getSummary();
+
+			if (excludeEvent(eventSummary.toLowerCase())) {
+				continue;
+			}
+
+			List<EventAttendee> attendees = event.getAttendees();
+
+			if (attendees == null || isDeclined(calendarId, attendees)) {
+				continue;
+			}
+
+			final String eday = getDayStr(event.getStart());
+			final String etime = getTimeStr(event);
+
+			if (isCustomerMeeting(attendees) && isNotPTODay(ptoDays, eday)) {
+				String str = calendarId + "," + event.getSummary() + "," + eday + "," + etime;
+
+				bw.write(str);
+				bw.newLine();
+				i++;
+			}
 		}
 
+		String outputSummary = calendarId + "," + i + "\n";
+		System.out.print(outputSummary);
+		
 		return i;
 	}
 
-	private static boolean isNotPTODay(List<String> ptoDays, String edate) {
-		boolean status = true;
-
-		for (String ptoDay : ptoDays) {
-			if (edate.equals(ptoDay)){
-				status = false;
-				continue;
-			}
-		}	
-					
-		return status;
-	}
-
-	private static List<String> getPTODays(List<Event> items) throws ParseException {
-		List<String> ptoDays = new ArrayList<String>();
-		long oneDay = 86400000;
+	private static List<String> getPTODays(final List<Event> items) throws ParseException {
+		final List<String> ptoDays = new ArrayList<String>();
+		final long oneDay = 86400000;
 
 		for (Event event : items) {
 
@@ -201,14 +209,14 @@ public class GCalendar {
 				continue;
 			}
 
-			String eventSummary = event.getSummary().toLowerCase();
+			final String eventSummary = event.getSummary().toLowerCase();
 
 			if (eventSummary.contains("pto") || eventSummary.contains("out of office")) {
-				String startDayStr = getDayStr(event.getStart());
-				String endDayStr = getDayStr(event.getEnd());
+				final String startDayStr = getDayStr(event.getStart());
+				final String endDayStr = getDayStr(event.getEnd());
 
 				long nd = getDateMs(startDayStr);
-				long ed = getDateMs(endDayStr);
+				final long ed = getDateMs(endDayStr);
 
 				String nextDateStr = startDayStr;
 
@@ -223,7 +231,7 @@ public class GCalendar {
 		return ptoDays;
 	}
 
-	private static String getDayStr(EventDateTime eventDateTime) {
+	private static String getDayStr(final EventDateTime eventDateTime) {
 		DateTime start = eventDateTime.getDateTime();
 
 		if (start == null) {
@@ -239,7 +247,7 @@ public class GCalendar {
 		return eday;
 	}
 
-	private static String getTimeStr(Event e) {
+	private static String getTimeStr(final Event e) {
 		DateTime start = e.getStart().getDateTime();
 
 		if (start == null) {
@@ -255,23 +263,36 @@ public class GCalendar {
 		return etime;
 	}
 
-	private static Long getDateMs(String str) throws ParseException {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-		Date date = sdf.parse(str);
-		long millis = date.getTime();
+	private static Long getDateMs(final String str) throws ParseException {
+		final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+		final Date date = sdf.parse(str);
+		final long millis = date.getTime();
 		return millis;
 	}
 
-	private static String getDateStr(long ms){
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-		String data = df.format(new Date(ms));
+	private static String getDateStr(final long ms){
+		final DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		final String data = df.format(new Date(ms));
 		return data;
 	}
 
-	private static boolean isDeclined(String calendarId, List<EventAttendee> attendees) {
+	private static boolean isNotPTODay(List<String> ptoDays, String edate) {
+		boolean status = true;
+
+		for (final String ptoDay : ptoDays) {
+			if (edate.equals(ptoDay)){
+				status = false;
+				continue;
+			}
+		}	
+					
+		return status;
+	}
+
+	private static boolean isDeclined(final String calendarId, final List<EventAttendee> attendees) {
 		boolean status = false;
 
-		for (EventAttendee attendee : attendees) {
+		for (final EventAttendee attendee : attendees) {
 
 			if (attendee.getEmail().equalsIgnoreCase(calendarId) && attendee.getResponseStatus().equalsIgnoreCase("declined")){
 				status = true;
@@ -282,7 +303,7 @@ public class GCalendar {
 		return status;
 	}
 
-	private static boolean excludeEvent(String eventSummary) {
+	private static boolean excludeEvent(final String eventSummary) {
 
 		if (eventSummary.contains("scrum") || 
 		    eventSummary.contains("ipod bi-weekly") || 
@@ -307,14 +328,14 @@ public class GCalendar {
 		}
 	}
 
-	private static boolean isCustomerMeeting(List<EventAttendee> attendees) {
+	private static boolean isCustomerMeeting(final List<EventAttendee> attendees) {
 
 		boolean status = false;
 
-		for (EventAttendee attendee : attendees) {
+		for (final EventAttendee attendee : attendees) {
 
 			if (attendee != null) {
-				String email = attendee.getEmail();
+				final String email = attendee.getEmail();
 
 				if (!email.contains("@sonatype.com")) {
 					status = true;
@@ -326,7 +347,7 @@ public class GCalendar {
 		return status;
 	}
 
-	private static DateTime parseDate(String period, String periodStr) {
+	private static DateTime parseDate(final String period, final String periodStr) {
 
 		String periodTime;
 
@@ -335,9 +356,9 @@ public class GCalendar {
 		else
 			periodTime = "23:00:00";
 
-		String[] periodDate = periodStr.split("-");
+		final String[] periodDate = periodStr.split("-");
 
-		DateTime periodDateDt = new DateTime(getDateMs(periodDate[0], periodDate[1], periodDate[2], periodTime));
+		final DateTime periodDateDt = new DateTime(getDateMs(periodDate[0], periodDate[1], periodDate[2], periodTime));
 
 		return periodDateDt;
 	}
@@ -349,25 +370,25 @@ public class GCalendar {
 	 * @return An authorized Credential object.
 	 * @throws IOException If the credentials.json file cannot be found.
 	 */
-	private static Credential getCredentials(NetHttpTransport HTTP_TRANSPORT) throws IOException {
+	private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
 
 		// Load client secrets.
-		InputStream in = new FileInputStream(CREDENTIALS_FILE_PATH);
+		final InputStream in = new FileInputStream(CREDENTIALS_FILE_PATH);
 
 		if (in == null) {
             throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
 		}
 		
-		GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
+		final GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
 
 		// Build flow and trigger user authorization request.
-		GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow
+		final GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow
 						.Builder(HTTP_TRANSPORT, JSON_FACTORY,clientSecrets, SCOPES)
 						.setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
 						.setAccessType("offline")
 						.build();
 
-		LocalServerReceiver receiver = new LocalServerReceiver
+		final LocalServerReceiver receiver = new LocalServerReceiver
 											.Builder()
 											.setPort(8888)
 											.build();
@@ -375,13 +396,13 @@ public class GCalendar {
 		return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
 	}
 
-	public static long getDateMs(String yr, String mth, String day, String time) {
+	public static long getDateMs(final String yr, final String mth, final String day, final String time) {
 
-		String myDate = yr + "/" + mth + "/" + day + " " + time;
+		final String myDate = yr + "/" + mth + "/" + day + " " + time;
 
-		LocalDateTime localDateTime = LocalDateTime.parse(myDate, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"));
+		final LocalDateTime localDateTime = LocalDateTime.parse(myDate, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"));
 
-		long millis = localDateTime
+		final long millis = localDateTime
 						.atZone(ZoneId
 						.systemDefault())
 						.toInstant()
@@ -390,15 +411,15 @@ public class GCalendar {
 		return millis;
 	}
 
-	public static List<String> readFile(String inputFile) throws IOException {
+	public static List<String> readFile(final String inputFile) throws IOException {
 
-		List<String> lines = new ArrayList<String>();
+		final List<String> lines = new ArrayList<String>();
 
-		File f = new File(inputFile);
+		final File f = new File(inputFile);
 
 		if (f.exists() && !f.isDirectory() && f.length() > 0) {
 
-			BufferedReader br = new BufferedReader(new FileReader(f));
+			final BufferedReader br = new BufferedReader(new FileReader(f));
 			
 			String line;
 			
