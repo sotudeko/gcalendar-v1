@@ -2,7 +2,7 @@
 
 ## Description
 
-This is a simple java application that will read and list calendars events for a list of calendars id provided.
+This is a simple java application that will read and list calendars events for a list of calendar ids provided.
 
 ## Prerequisites
 
