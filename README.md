@@ -47,6 +47,7 @@ This is a simple java application that will read and list calendars events for a
 	```
 	java -jar gcalendar-<version>.jar 2020-07-13 2020-07-20
 	```
+	- Very important: at the very first execution please pick a date range in the past. This will validate the authentication token for future queries.
 	
 **Output**
   * As well as the summary count of events displayed to the screen, a file named *<startdate>_<enddate>.csv* will also be created in the current directory.
