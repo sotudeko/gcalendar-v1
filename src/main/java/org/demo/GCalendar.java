@@ -55,6 +55,7 @@ public class GCalendar {
 	private static final List<String> SCOPES = Collections.singletonList(CalendarScopes.CALENDAR_READONLY);
 	private static final String CREDENTIALS_FILE_PATH = "./credentials.json";
 	private static final String CALENDARIDS_FILE_PATH = "./calendar-ids.txt";
+	private static final String FILTER_FILE_PATH = "./filter.txt";
 
 	public static void main(final String... args) throws Exception {
 
@@ -62,15 +63,15 @@ public class GCalendar {
 			errorExit("start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
 		}
 
-		String startDate = args[0];
-		String endDate = args[1];
+		final String startDate = args[0];
+		final String endDate = args[1];
 
-		DateTime timeMin = parseDate("startDate", startDate);
-		DateTime timeMax = parseDate("endDate", endDate);
+		final DateTime timeMin = parseDate("startDate", startDate);
+		final DateTime timeMax = parseDate("endDate", endDate);
 
-		String outputFile = startDate + "_" + endDate + ".csv";
+		final String outputFile = startDate + "_" + endDate + ".csv";
 
-		File f = new File(outputFile);
+		final File f = new File(outputFile);
 		BufferedWriter bw = null;
 
 		if (f.exists()) {
@@ -89,7 +90,7 @@ public class GCalendar {
 		// final Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
 		// 		.setApplicationName(APPLICATION_NAME).build();
 
-		List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
+		final List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
 
 		if (calendarIds.size() == 0) {
 			errorExit("calendar ids file not found: " + CALENDARIDS_FILE_PATH);
@@ -97,22 +98,22 @@ public class GCalendar {
 
 		int count = 0;
 
-		for (String calendarId : calendarIds) {
+		for (final String calendarId : calendarIds) {
 
 			if (calendarId.startsWith("#")) {
 				continue;
 			}
 
-			List<Event> calendarItems = getCalendarEvents(calendarId, timeMin, timeMax);
+			final List<Event> calendarItems = getCalendarEvents(calendarId, timeMin, timeMax);
 
 			if (calendarItems.isEmpty()) {
 				System.out.println("No upcoming events found.");
 				continue;
 			} 
 
-			List<String> ptoDays = getPTODays(calendarItems);
+			final List<String> ptoDays = getPTODays(calendarItems);
 
-			int i = listCalendarEvents(calendarId, calendarItems, ptoDays, timeMin, timeMax, bw);
+			final int i = listCalendarEvents(calendarId, calendarItems, ptoDays, timeMin, timeMax, bw);
 			count += i;
 
 		}
@@ -126,7 +127,7 @@ public class GCalendar {
 		System.out.println("Total entries: " + count);
 	}
 
-	private static List<Event> getCalendarEvents(String calendarId, DateTime timeMin, DateTime timeMax)
+	private static List<Event> getCalendarEvents(final String calendarId, final DateTime timeMin, final DateTime timeMax)
 			throws GeneralSecurityException, IOException {
 
 		final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
@@ -154,12 +155,12 @@ public class GCalendar {
 	}
 
 	public static int listCalendarEvents(
-			String calendarId, 
-			List<Event> items, 
-			List<String> ptoDays, 
-			DateTime timeMin,
-			DateTime timeMax,
-			BufferedWriter bw) throws IOException, ParseException {
+			final String calendarId, 
+			final List<Event> items, 
+			final List<String> ptoDays, 
+			final DateTime timeMin,
+			final DateTime timeMax,
+			final BufferedWriter bw) throws IOException, ParseException {
 
 		int i = 0;
 
@@ -169,13 +170,13 @@ public class GCalendar {
 				continue;
 			}
 
-			String eventSummary = event.getSummary();
+			final String eventSummary = event.getSummary();
 
-			if (excludeEvent(eventSummary.toLowerCase())) {
+			if (excludeEventByFilter(eventSummary.toLowerCase())) {
 				continue;
 			}
 
-			List<EventAttendee> attendees = event.getAttendees();
+			final List<EventAttendee> attendees = event.getAttendees();
 
 			if (attendees == null || isDeclined(calendarId, attendees)) {
 				continue;
@@ -185,7 +186,7 @@ public class GCalendar {
 			final String etime = getTimeStr(event);
 
 			if (isCustomerMeeting(attendees) && isNotPTODay(ptoDays, eday)) {
-				String str = calendarId + "," + event.getSummary() + "," + eday + "," + etime;
+				final String str = calendarId + "," + event.getSummary() + "," + eday + "," + etime;
 
 				bw.write(str);
 				bw.newLine();
@@ -193,7 +194,7 @@ public class GCalendar {
 			}
 		}
 
-		String outputSummary = calendarId + "," + i + "\n";
+		final String outputSummary = calendarId + "," + i + "\n";
 		System.out.print(outputSummary);
 		
 		return i;
@@ -203,7 +204,7 @@ public class GCalendar {
 		final List<String> ptoDays = new ArrayList<String>();
 		final long oneDay = 86400000;
 
-		for (Event event : items) {
+		for (final Event event : items) {
 
 			if (event.getSummary() == null){
 				continue;
@@ -276,7 +277,7 @@ public class GCalendar {
 		return data;
 	}
 
-	private static boolean isNotPTODay(List<String> ptoDays, String edate) {
+	private static boolean isNotPTODay(final List<String> ptoDays, final String edate) {
 		boolean status = true;
 
 		for (final String ptoDay : ptoDays) {
@@ -307,8 +308,7 @@ public class GCalendar {
 
 		if (eventSummary.contains("scrum") || 
 		    eventSummary.contains("ipod bi-weekly") || 
-			eventSummary.contains("biweekly") || 
-			eventSummary.contains("battle buddies") ||
+ 			eventSummary.contains("battle buddies") ||
 			eventSummary.contains("pm/em/se") || 
 			eventSummary.contains("talkto") ||
 			eventSummary.contains("redlight") || 
@@ -326,6 +326,33 @@ public class GCalendar {
 		else {
 			return false;
 		}
+	}
+
+	private static boolean excludeEventByFilter(final String eventSummary) throws IOException {
+		final List<String> excludeEvents = readFile(FILTER_FILE_PATH);
+
+     	if (excludeEvents.size() > 0) {
+
+     		boolean status = false;
+
+     		for (final String event : excludeEvents) {
+
+     			final String eventStr = event.toLowerCase();
+
+     			if (!isBlankString(eventStr) && eventSummary.contains(eventStr)) {
+     				status = true;
+     			}
+     		}
+
+     		return status;
+     	}
+     	else {
+     		return false;
+     	}
+	}
+
+	private static boolean isBlankString(final String string) {
+		return string == null || string.trim().isEmpty();
 	}
 
 	private static boolean isCustomerMeeting(final List<EventAttendee> attendees) {
