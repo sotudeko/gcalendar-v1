@@ -22,7 +22,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
@@ -56,11 +58,20 @@ public class GCalendar {
 	private static final String CREDENTIALS_FILE_PATH = "./credentials.json";
 	private static final String CALENDARIDS_FILE_PATH = "./calendar-ids.txt";
 	private static final String FILTER_FILE_PATH = "./filter.txt";
+	private static final String CUSTOMER_NAMES_FILE_PATH = "./customer-names.txt";
+
+	private static List<String> fullCustomerNames;
+	private static boolean customerNamesAvailable = false;
+	static HashMap<String, String> customerNamesMap = new HashMap<String, String>();
+
+	private static List<String> excludeEventFilter;
+	private static boolean filterAvailable = false;
 
 	public static void main(final String... args) throws Exception {
 
 		if (args.length == 0) {
-			errorExit("start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
+			errorExit(
+					"start and end dates required in format yyyy-mm-dd. e.g. java -jar gcalendar.java 2020-07-13 2020-07-17");
 		}
 
 		final String startDate = args[0];
@@ -84,20 +95,36 @@ public class GCalendar {
 			bw.write("Id,Event,Date,Time\n");
 		}
 
-		// Build a new authorized API client service.
-		// final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-
-		// final Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-		// 		.setApplicationName(APPLICATION_NAME).build();
-
 		final List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
 
 		if (calendarIds.size() == 0) {
 			errorExit("calendar ids file not found: " + CALENDARIDS_FILE_PATH);
 		}
 
+		// file with list of keywords for excluding events
+		excludeEventFilter = readFile(FILTER_FILE_PATH);
+
+		if (excludeEventFilter.size() > 0) {
+			filterAvailable = true;
+		}
+
+		// list of customer names provide full customer based on event details
+		fullCustomerNames = readFile(CUSTOMER_NAMES_FILE_PATH);
+
+		if (fullCustomerNames.size() > 0) {
+			customerNamesAvailable = true;
+
+			for (final String entry : fullCustomerNames) {
+				final String[] parts = entry.split(":");
+				final String key = parts[0];
+				final String fullName = parts[1];
+				customerNamesMap.put(key, fullName);
+			}
+		}
+
 		int count = 0;
 
+		// list items for each calendar
 		for (final String calendarId : calendarIds) {
 
 			if (calendarId.startsWith("#")) {
@@ -115,7 +142,6 @@ public class GCalendar {
 
 			final int i = listCalendarEvents(calendarId, calendarItems, ptoDays, timeMin, timeMax, bw);
 			count += i;
-
 		}
 
 		if (count > 0) {
@@ -126,6 +152,7 @@ public class GCalendar {
 		bw.close();
 		System.out.println("Total entries: " + count);
 	}
+
 
 	private static List<Event> getCalendarEvents(final String calendarId, final DateTime timeMin, final DateTime timeMax)
 			throws GeneralSecurityException, IOException {
@@ -149,10 +176,12 @@ public class GCalendar {
 		return items;
 	 }
 
+
 	private static void errorExit(final String msg){
 		System.err.println("error: " + msg);
 		System.exit(-1);
 	}
+
 
 	public static int listCalendarEvents(
 			final String calendarId, 
@@ -170,9 +199,9 @@ public class GCalendar {
 				continue;
 			}
 
-			final String eventSummary = event.getSummary();
+			String eventSummary = event.getSummary();
 
-			if (excludeEventByFilter(eventSummary.toLowerCase())) {
+			if (filterAvailable && excludeEventByFilter(eventSummary.toLowerCase())) {
 				continue;
 			}
 
@@ -186,9 +215,21 @@ public class GCalendar {
 			final String etime = getTimeStr(event);
 
 			if (isCustomerMeeting(attendees) && isNotPTODay(ptoDays, eday)) {
-				final String str = calendarId + "," + event.getSummary() + "," + eday + "," + etime;
 
-				bw.write(str);
+				String opStr = "";
+				String customerName = "";
+
+				eventSummary = eventSummary.replaceAll(",", ";");
+
+				if (customerNamesAvailable){
+					customerName = getCustomerName(event.getSummary());
+					opStr = calendarId + "," + customerName + "," + eventSummary + "," + eday + "," + etime;
+				} 
+				else {
+					opStr = calendarId + "," + eventSummary + "," + eday + "," + etime;
+				}
+
+				bw.write(opStr);
 				bw.newLine();
 				i++;
 			}
@@ -196,9 +237,10 @@ public class GCalendar {
 
 		final String outputSummary = calendarId + "," + i + "\n";
 		System.out.print(outputSummary);
-		
+
 		return i;
 	}
+
 
 	private static List<String> getPTODays(final List<Event> items) throws ParseException {
 		final List<String> ptoDays = new ArrayList<String>();
@@ -206,7 +248,7 @@ public class GCalendar {
 
 		for (final Event event : items) {
 
-			if (event.getSummary() == null){
+			if (event.getSummary() == null) {
 				continue;
 			}
 
@@ -223,7 +265,7 @@ public class GCalendar {
 
 				do {
 					ptoDays.add(nextDateStr);
-					nd+= oneDay;
+					nd += oneDay;
 					nextDateStr = getDateStr(nd);
 				} while (nd <= ed);
 			}
@@ -231,6 +273,7 @@ public class GCalendar {
 
 		return ptoDays;
 	}
+
 
 	private static String getDayStr(final EventDateTime eventDateTime) {
 		DateTime start = eventDateTime.getDateTime();
@@ -241,12 +284,13 @@ public class GCalendar {
 
 		String eday = start.toString();
 
-		if (eday.length() > 10){
+		if (eday.length() > 10) {
 			eday = eday.substring(0, eday.indexOf("T"));
 		}
 
 		return eday;
 	}
+
 
 	private static String getTimeStr(final Event e) {
 		DateTime start = e.getStart().getDateTime();
@@ -257,12 +301,13 @@ public class GCalendar {
 
 		String etime = start.toString();
 
-		if (etime.length() > 10){
+		if (etime.length() > 10) {
 			etime = etime.substring(etime.indexOf("T") + 1, etime.indexOf("."));
 		}
 
 		return etime;
 	}
+
 
 	private static Long getDateMs(final String str) throws ParseException {
 		final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
@@ -271,31 +316,35 @@ public class GCalendar {
 		return millis;
 	}
 
-	private static String getDateStr(final long ms){
+
+	private static String getDateStr(final long ms) {
 		final DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
 		final String data = df.format(new Date(ms));
 		return data;
 	}
 
+
 	private static boolean isNotPTODay(final List<String> ptoDays, final String edate) {
 		boolean status = true;
 
 		for (final String ptoDay : ptoDays) {
-			if (edate.equals(ptoDay)){
+			if (edate.equals(ptoDay)) {
 				status = false;
 				continue;
 			}
-		}	
-					
+		}
+
 		return status;
 	}
+
 
 	private static boolean isDeclined(final String calendarId, final List<EventAttendee> attendees) {
 		boolean status = false;
 
 		for (final EventAttendee attendee : attendees) {
 
-			if (attendee.getEmail().equalsIgnoreCase(calendarId) && attendee.getResponseStatus().equalsIgnoreCase("declined")){
+			if (attendee.getEmail().equalsIgnoreCase(calendarId)
+					&& attendee.getResponseStatus().equalsIgnoreCase("declined")) {
 				status = true;
 				continue;
 			}
@@ -304,56 +353,42 @@ public class GCalendar {
 		return status;
 	}
 
-	private static boolean excludeEvent(final String eventSummary) {
 
-		if (eventSummary.contains("scrum") || 
-		    eventSummary.contains("ipod bi-weekly") || 
- 			eventSummary.contains("battle buddies") ||
-			eventSummary.contains("pm/em/se") || 
-			eventSummary.contains("talkto") ||
-			eventSummary.contains("redlight") || 
-			eventSummary.contains("international team") ||
-			eventSummary.contains("1:1") || 
-			eventSummary.contains("lunch") || 
-			eventSummary.contains("pto") ||
-			eventSummary.contains("emea weekly") || 
-			eventSummary.contains("tech enablement") ||
-			eventSummary.contains("open space") || 
-			eventSummary.contains("brightspots") ||
-			eventSummary.contains("out of office")) {
-			return true;
-		} 
-		else {
-			return false;
+	private static String getCustomerName(final String eventSummary) {
+		String customerName = "";
+
+		for (final String key : customerNamesMap.keySet()) {
+			if (eventSummary.contains(key)) {
+				customerName = customerNamesMap.get(key);
+			}
 		}
+
+		return customerName;
 	}
+
 
 	private static boolean excludeEventByFilter(final String eventSummary) throws IOException {
-		final List<String> excludeEvents = readFile(FILTER_FILE_PATH);
 
-     	if (excludeEvents.size() > 0) {
+     	boolean status = false;
 
-     		boolean status = false;
+     	for (final String event : excludeEventFilter) {
 
-     		for (final String event : excludeEvents) {
+     		final String eventStr = event.toLowerCase();
 
-     			final String eventStr = event.toLowerCase();
-
-     			if (!isBlankString(eventStr) && eventSummary.contains(eventStr)) {
-     				status = true;
-     			}
+     		if (!isBlankString(eventStr) && eventSummary.contains(eventStr)) {
+     			status = true;
      		}
+     	}
 
-     		return status;
-     	}
-     	else {
-     		return false;
-     	}
+     	return status;
+
 	}
+
 
 	private static boolean isBlankString(final String string) {
 		return string == null || string.trim().isEmpty();
 	}
+
 
 	private static boolean isCustomerMeeting(final List<EventAttendee> attendees) {
 
@@ -374,6 +409,7 @@ public class GCalendar {
 		return status;
 	}
 
+
 	private static DateTime parseDate(final String period, final String periodStr) {
 
 		String periodTime;
@@ -389,6 +425,7 @@ public class GCalendar {
 
 		return periodDateDt;
 	}
+	
 
 	/**
 	 * Creates an authorized Credential object.
@@ -423,6 +460,7 @@ public class GCalendar {
 		return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
 	}
 
+
 	public static long getDateMs(final String yr, final String mth, final String day, final String time) {
 
 		final String myDate = yr + "/" + mth + "/" + day + " " + time;
@@ -437,6 +475,7 @@ public class GCalendar {
 
 		return millis;
 	}
+
 
 	public static List<String> readFile(final String inputFile) throws IOException {
 
@@ -459,6 +498,7 @@ public class GCalendar {
 	
         return lines;
 	}
+
 }
 
 

@@ -1,3 +1,4 @@
+import java.text.SimpleDateFormat
 
 plugins {
 	id 'java'
@@ -19,16 +20,29 @@ task copyDependencies(type: Copy) {
   into 'build/dependencies'
 }
 
-task gcPackage(type: Zip) {
+task gcBundle(type: Zip) {
    from 'build/libs'
    include '*.jar'
+   include 'run-app.sh'
    archiveName 'gcalendar.zip'
-   destinationDir(file('.'))
+   destinationDir(file(projectDir))
+}
+
+task gcRunfile()  {
+    doLast {
+        new File('build/libs', "run-app.sh").text = """
+#!/bin/sh
+#Version: $version
+#Buildtime: ${new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date())}
+Application-name: gcalendar
+java -jar gcalendar.jar \$1 \$2
+"""
+    }
 }
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-version = '1.2'
+version = '1.3'
 mainClassName = 'org.demo.GCalendar'
 
 repositories {
