@@ -15,34 +15,38 @@ nexusIQScan {
   allConfigurations = true 
 }
 
-task copyDependencies(type: Copy) {
+clean.doFirst {
+    delete "${rootDir}/gcalendar.zip/"
+}
+
+task copydependencies(type: Copy) {
   from configurations.default
   into 'build/dependencies'
 }
 
-task gcBundle(type: Zip) {
+task bundle(type: Zip) {
    from 'build/libs'
    include '*.jar'
-   include 'run-app.sh'
+   include 'run.sh'
    archiveName 'gcalendar.zip'
    destinationDir(file(projectDir))
 }
 
-task gcRunfile()  {
+task runfile()  {
     doLast {
-        new File('build/libs', "run-app.sh").text = """
+        new File('build/libs', "run.sh").text = """
 #!/bin/sh
 #Version: $version
 #Buildtime: ${new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date())}
 Application-name: gcalendar
-java -jar gcalendar.jar \$1 \$2
+java -jar gcalendar-${version}.jar \$1 \$2
 """
     }
 }
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-version = '1.3'
+version = '1.4'
 mainClassName = 'org.demo.GCalendar'
 
 repositories {
@@ -65,4 +69,5 @@ dependencies {
     compile 'com.google.apis:google-api-services-calendar:v3-rev305-1.23.0'	
 }
 
+// gradle clean build copydependencies nexusIQScan runfile bundle
 

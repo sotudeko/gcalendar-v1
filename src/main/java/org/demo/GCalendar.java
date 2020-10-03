@@ -358,7 +358,7 @@ public class GCalendar {
 		String customerName = "";
 
 		for (final String key : customerNamesMap.keySet()) {
-			if (eventSummary.contains(key)) {
+			if (eventSummary.toLowerCase().contains(key.toLowerCase())) {
 				customerName = customerNamesMap.get(key);
 			}
 		}
