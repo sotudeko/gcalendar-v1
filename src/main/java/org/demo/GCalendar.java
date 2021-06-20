@@ -15,7 +15,7 @@ import java.security.GeneralSecurityException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-//import java.security.GeneralSecurityException;
+import java.security.GeneralSecurityException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -134,7 +134,7 @@ public class GCalendar {
 			final List<Event> calendarItems = getCalendarEvents(calendarId, timeMin, timeMax);
 
 			if (calendarItems.isEmpty()) {
-				System.out.println("No upcoming events found.");
+				System.out.println(calendarId + ": No upcoming events found.");
 				continue;
 			} 
 
@@ -157,12 +157,15 @@ public class GCalendar {
 	private static List<Event> getCalendarEvents(final String calendarId, final DateTime timeMin, final DateTime timeMax)
 			throws GeneralSecurityException, IOException {
 
+		List<Event> items = new ArrayList<Event>();
+
 		final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
 
 		final Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
 				.setApplicationName(APPLICATION_NAME).build();
 
-		final Events events = service
+		try {
+			final Events events = service
 							.events()
 							.list(calendarId)
 							.setTimeMin(timeMin)
@@ -171,8 +174,12 @@ public class GCalendar {
 							.setSingleEvents(true)
 							.execute();
 
-		final List<Event> items = events.getItems();
-
+		  items = events.getItems();
+		} 
+		catch (Exception e) {
+			//TODO: handle exception
+		}
+		
 		return items;
 	 }
 
