@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
@@ -58,11 +59,12 @@ public class GCalendar {
 	private static final String CREDENTIALS_FILE_PATH = "./credentials.json";
 	private static final String CALENDARIDS_FILE_PATH = "./calendar-ids.txt";
 	private static final String FILTER_FILE_PATH = "./filter.txt";
-	private static final String CUSTOMER_NAMES_FILE_PATH = "./customer-names.txt";
+	//private static final String CUSTOMER_NAMES_FILE_PATH = "./customer-names.txt";
 
-	private static List<String> fullCustomerNames;
-	private static boolean customerNamesAvailable = false;
-	static HashMap<String, String> customerNamesMap = new HashMap<String, String>();
+	// private static List<String> fullCustomerNames;
+	// private static boolean customerNamesAvailable = false;
+	//static HashMap<String, String> customerNamesMap = new HashMap<String, String>();
+	private static Map<String, String> customerMeetings = new TreeMap<>();
 
 	private static List<String> excludeEventFilter;
 	private static boolean filterAvailable = false;
@@ -108,20 +110,6 @@ public class GCalendar {
 			filterAvailable = true;
 		}
 
-		// list of customer names provide full customer based on event details
-		fullCustomerNames = readFile(CUSTOMER_NAMES_FILE_PATH);
-
-		if (fullCustomerNames.size() > 0) {
-			customerNamesAvailable = true;
-
-			for (final String entry : fullCustomerNames) {
-				final String[] parts = entry.split(":");
-				final String key = parts[0];
-				final String fullName = parts[1];
-				customerNamesMap.put(key, fullName);
-			}
-		}
-
 		int count = 0;
 
 		// list items for each calendar
@@ -144,6 +132,12 @@ public class GCalendar {
 			count += i;
 		}
 
+		for (Map.Entry<String, String> entry : customerMeetings.entrySet()){
+			String opStr = entry.getValue() + "," + entry.getKey();
+			bw.write((opStr));
+			bw.newLine();
+		}
+		
 		if (count > 0) {
 			bw.write("Total entries: " + count);
 			System.out.println("\nOutputfile: " + outputFile);
@@ -206,38 +200,26 @@ public class GCalendar {
 				continue;
 			}
 
-			String eventSummary = event.getSummary();
+			final String eventSummary = event.getSummary();
 
 			if (filterAvailable && excludeEventByFilter(eventSummary.toLowerCase())) {
 				continue;
 			}
 
+			if (excludeEvent(eventSummary.toLowerCase())) {
+				continue;
+			}
+
 			final List<EventAttendee> attendees = event.getAttendees();
 
-			if (attendees == null || isDeclined(calendarId, attendees)) {
+			if (attendees == null || isDeclinedByCalendarId(calendarId, attendees)) {
 				continue;
 			}
 
 			final String eday = getDayStr(event.getStart());
-			final String etime = getTimeStr(event);
 
 			if (isCustomerMeeting(attendees) && isNotPTODay(ptoDays, eday)) {
-
-				String opStr = "";
-				String customerName = "";
-
-				eventSummary = eventSummary.replaceAll(",", ";");
-
-				if (customerNamesAvailable){
-					customerName = getCustomerName(event.getSummary());
-					opStr = calendarId + "," + customerName + "," + eventSummary + "," + eday + "," + etime;
-				} 
-				else {
-					opStr = calendarId + "," + eventSummary + "," + eday + "," + etime;
-				}
-
-				bw.write(opStr);
-				bw.newLine();
+				getCustomerNameForMeeting(calendarId, event);
 				i++;
 			}
 		}
@@ -345,7 +327,7 @@ public class GCalendar {
 	}
 
 
-	private static boolean isDeclined(final String calendarId, final List<EventAttendee> attendees) {
+	private static boolean isDeclinedByCalendarId(final String calendarId, final List<EventAttendee> attendees) {
 		boolean status = false;
 
 		for (final EventAttendee attendee : attendees) {
@@ -358,19 +340,6 @@ public class GCalendar {
 		}
 
 		return status;
-	}
-
-
-	private static String getCustomerName(final String eventSummary) {
-		String customerName = "";
-
-		for (final String key : customerNamesMap.keySet()) {
-			if (eventSummary.toLowerCase().contains(key.toLowerCase())) {
-				customerName = customerNamesMap.get(key);
-			}
-		}
-
-		return customerName;
 	}
 
 
@@ -391,11 +360,9 @@ public class GCalendar {
 
 	}
 
-
 	private static boolean isBlankString(final String string) {
 		return string == null || string.trim().isEmpty();
 	}
-
 
 	private static boolean isCustomerMeeting(final List<EventAttendee> attendees) {
 
@@ -414,6 +381,50 @@ public class GCalendar {
 		}
 
 		return status;
+	}
+
+	private static void getCustomerNameForMeeting(String calendarId, Event event) {
+		Map<String, Integer> cnames = new TreeMap<>();
+
+		final List<EventAttendee> attendees = event.getAttendees();
+		final String eday = getDayStr(event.getStart());
+		final String etime = getTimeStr(event);
+		final String eventSummary = event.getSummary();
+		eventSummary.replaceAll(",", ";");
+
+		String meetingDesc = calendarId + "," + eventSummary + "," + eday + "," + etime;
+		System.out.println(meetingDesc);
+
+		String customerName = "";
+
+		for (final EventAttendee attendee : attendees) {
+			if (attendee != null) {
+				final String email = attendee.getEmail();
+
+				if (!email.contains("@sonatype.com")) {
+					final String[] parts = email.split("@");
+					final String name = parts[0];
+					String address = parts[1];
+
+					address = address.substring(0, address.lastIndexOf("."));
+					address = cleanupAddress(address);
+
+					if (!excludeAddress(address)){
+						if (!cnames.containsKey(address)){
+							customerName = address + "/" + customerName;
+						}
+						cnames.put(address, 1);
+					}
+				}
+			}
+		}
+
+		if (customerName.length() > 0){
+			customerMeetings.put(customerName, meetingDesc);
+		}
+
+		//return (customerName == null || customerName.length() == 0) ? null : (customerName.substring(0, customerName.length() - 1));
+		return;
 	}
 
 
@@ -506,6 +517,56 @@ public class GCalendar {
         return lines;
 	}
 
+	private static boolean excludeEvent(String eventSummary) {
+
+		if (eventSummary.contains("scrum") || 
+		    eventSummary.contains("ipod bi-weekly") || 
+				eventSummary.contains("biweekly") || 
+				eventSummary.contains("battle buddies") ||
+				eventSummary.contains("pm/em/se") || 
+				eventSummary.contains("talkto") ||
+				eventSummary.contains("redlight") || 
+				eventSummary.contains("international team") ||
+				eventSummary.contains("1:1") || 
+				eventSummary.contains("lunch") || 
+				eventSummary.contains("pto") ||
+				eventSummary.contains("emea weekly") || 
+				eventSummary.contains("tech enablement") ||
+				eventSummary.contains("open space") || 
+				eventSummary.contains("brightspot") ||
+				eventSummary.contains("out of office")) {
+			return true;
+		} 
+		else {
+			return false;
+		}
+
+		}
+	
+		private static boolean excludeAddress(String address){
+			if (address.contains("external.") ||
+					address.equals("gmail") ||
+					address.contains("ap.") ||
+					address.contains("engineering") ||
+					address.equals("ext") ||
+					address.equals("db") ||
+					address.contains("asia") ||
+			    address.contains("externe.")) {
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+
+		private static String cleanupAddress(String address){
+			address = address.replaceFirst("(^uk.)", "");
+			address = address.replaceFirst("(^ext.)", "");
+			address = address.replaceFirst("(.co$)", "");
+			address = address.replaceFirst("(.gov$)", "");
+
+			return address;
+		}
 }
 
 
