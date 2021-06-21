@@ -94,7 +94,7 @@ public class GCalendar {
 		if (f.createNewFile()) {
 			final FileOutputStream fos = new FileOutputStream(f);
 			bw = new BufferedWriter(new OutputStreamWriter(fos));
-			bw.write("Id,Event,Date,Time\n");
+			//bw.write("Id,Event,Date,Time\n");
 		}
 
 		final List<String> calendarIds = readFile(CALENDARIDS_FILE_PATH);
@@ -133,13 +133,13 @@ public class GCalendar {
 		}
 
 		for (Map.Entry<String, String> entry : customerMeetings.entrySet()){
-			String opStr = entry.getValue() + "," + entry.getKey();
+			String opStr = entry.getKey();
 			bw.write((opStr));
 			bw.newLine();
 		}
 		
 		if (count > 0) {
-			bw.write("Total entries: " + count);
+			//bw.write("Total entries: " + count);
 			System.out.println("\nOutputfile: " + outputFile);
 		}
 
@@ -403,7 +403,6 @@ public class GCalendar {
 
 				if (!email.contains("@sonatype.com")) {
 					final String[] parts = email.split("@");
-					final String name = parts[0];
 					String address = parts[1];
 
 					address = address.substring(0, address.lastIndexOf("."));
@@ -420,7 +419,7 @@ public class GCalendar {
 		}
 
 		if (customerName.length() > 0){
-			customerMeetings.put(customerName, meetingDesc);
+			customerMeetings.put(customerName.substring(0, customerName.length() - 1), meetingDesc);
 		}
 
 		//return (customerName == null || customerName.length() == 0) ? null : (customerName.substring(0, customerName.length() - 1));
@@ -560,10 +559,10 @@ public class GCalendar {
 		}
 
 		private static String cleanupAddress(String address){
-			address = address.replaceFirst("(^uk.)", "");
-			address = address.replaceFirst("(^ext.)", "");
-			address = address.replaceFirst("(.co$)", "");
-			address = address.replaceFirst("(.gov$)", "");
+			address = address.replaceFirst("(^uk\\.)", "");
+			address = address.replaceFirst("(^ext\\.)", "");
+			address = address.replaceFirst("(\\.co$)", "");
+			address = address.replaceFirst("(\\.gov$)", "");
 
 			return address;
 		}
