@@ -3,9 +3,9 @@ import java.text.SimpleDateFormat
 plugins {
 	id 'java'
 	id 'application'
-	id 'org.sonatype.gradle.plugins.scan' version '2.0.10'
     id 'org.cyclonedx.bom'
 }
+
 
 nexusIQScan {
   username = 'admin'
@@ -14,7 +14,15 @@ nexusIQScan {
   applicationId = 'gcal-app'
   stage = 'build'  
   allConfigurations = true 
-  resultFilePath = 'results.json'
+}
+
+//cyclonedxBom {
+    // skipConfigs is a list of configuration names to exclude when generating the BOM
+    //skipConfigs += ["compileClasspath", "testCompileClasspath"]
+    // Specified the type of project being built. Defaults to 'library' 
+    //projectType = "application"
+    // Specified the version of the CycloneDX specification to use. Defaults to 1.2.
+    //schemaVersion = "1.2"
 }
 
 clean.doFirst {
@@ -69,8 +77,7 @@ dependencies {
     compile 'com.google.api-client:google-api-client:1.23.0'
     compile 'com.google.oauth-client:google-oauth-client-jetty:1.23.0'
     compile 'com.google.apis:google-api-services-calendar:v3-rev305-1.23.0'	
-    compile 'org.apache.commons:commons-lang3:3.9'
 }
 
 // gradle clean build copydependencies nexusIQScan runfile bundle
-
+// gradle cyclonedxBom -Pcyclonedx.includeBomSerialNumber=false

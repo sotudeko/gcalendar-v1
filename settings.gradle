@@ -7,4 +7,21 @@
  * in the user manual at https://docs.gradle.org/6.0.1/userguide/multi_project_builds.html
  */
 
+pluginManagement {
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.toString() == 'org.cyclonedx.bom') {
+                useModule('org.cyclonedx:cyclonedx-gradle-plugin:1.3.0')
+            }
+        }
+    }
+    repositories {
+        mavenCentral()
+        gradlePluginPortal() 
+    }
+}
+
 rootProject.name = 'gcalendar'
+// rootProject.buildFileName = 'build.gradle.kts'
+
+

@@ -45,6 +45,8 @@ import com.google.api.services.calendar.model.EventAttendee;
 import com.google.api.services.calendar.model.EventDateTime;
 import com.google.api.services.calendar.model.Events;
 
+import org.apache.commons.lang3.StringUtils;
+
 public class GCalendar {
 
 	private static final String APPLICATION_NAME = "Google Calendar Information";
@@ -133,7 +135,7 @@ public class GCalendar {
 		}
 
 		for (Map.Entry<String, String> entry : customerMeetings.entrySet()){
-			String opStr = entry.getKey();
+			String opStr = entry.getKey() + "," + entry.getValue();
 			bw.write((opStr));
 			bw.newLine();
 		}
@@ -407,6 +409,7 @@ public class GCalendar {
 
 					address = address.substring(0, address.lastIndexOf("."));
 					address = cleanupAddress(address);
+					address = StringUtils.capitalize(address);
 
 					if (!excludeAddress(address)){
 						if (!cnames.containsKey(address)){
