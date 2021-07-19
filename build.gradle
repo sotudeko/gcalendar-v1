@@ -40,7 +40,7 @@ task runfile()  {
 #!/bin/sh
 #Version: $version
 #Buildtime: ${new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date())}
-Application-name: gcalendar
+#Application-name: gcalendar
 java -jar gcalendar-${version}.jar \$1 \$2
 """
     }
