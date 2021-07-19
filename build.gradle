@@ -48,7 +48,7 @@ java -jar gcalendar-${version}.jar \$1 \$2
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-version = '1.4'
+version = '21'
 mainClassName = 'org.demo.GCalendar'
 
 repositories {
